@@ -8,7 +8,9 @@ package com.qinjiu.usercenter.constant;
  */
 public interface UserConstant {
 
-    //用户登陆态
+    /**
+     * 用户登陆态
+     */
     String USER_LOGIN_STATUS = "userLoginStatus";
 
     /**

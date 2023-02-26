@@ -1,4 +1,4 @@
-package com.qinjiu.usercenter.model.domain.request;
+package com.qinjiu.usercenter.model.request;
 
 import lombok.Data;
 

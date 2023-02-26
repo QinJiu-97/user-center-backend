@@ -2,8 +2,13 @@ package com.qinjiu.usercenter.service;
 
 import com.qinjiu.usercenter.model.domain.User;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.qinjiu.usercenter.model.vo.UserVO;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
+
+import static com.qinjiu.usercenter.constant.UserConstant.ADMIN_ROLE;
+import static com.qinjiu.usercenter.constant.UserConstant.USER_LOGIN_STATUS;
 
 /**
 * @author 琴酒
@@ -43,4 +48,42 @@ public interface UserService extends IService<User> {
      * @param request
      */
     int UserLogout(HttpServletRequest request);
+
+    /**
+     * 根据用户标签搜索用户
+     * @param tagNameList 标签列表
+     * @return
+     */
+    List<User> searchByTags(List<String> tagNameList);
+
+    /**
+     * 更新用户信息
+     * @param user
+     * @return
+     */
+    int   updateUser(User user, User loginUser);
+
+    /**
+     * 获取用户登录信息
+     * @param request
+     * @return
+     */
+    User getLoginUser(HttpServletRequest request);
+
+    /**
+     * 是否为管理员
+     * @param request
+     * @return
+     */
+    boolean isAdmin(HttpServletRequest request);
+
+    boolean isAdmin(User loginUser);
+
+    /**
+     * 匹配用户
+     * @param n
+     * @param loginUser
+     * @return
+     */
+    List<User> matchUser(int n, User loginUser);
 }

@@ -2,22 +2,37 @@ package com.qinjiu.usercenter.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.qinjiu.usercenter.common.ErrorCode;
 import com.qinjiu.usercenter.exception.BusinessException;
+import com.qinjiu.usercenter.mapper.UserMapper;
 import com.qinjiu.usercenter.model.domain.User;
 import com.qinjiu.usercenter.service.UserService;
-import com.qinjiu.usercenter.mapper.UserMapper;
+import com.qinjiu.usercenter.utils.AlgorithmUtils;
+import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.math3.util.Pair;
+import org.redisson.api.RedissonClient;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.SetOperations;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.DigestUtils;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
+import static com.qinjiu.usercenter.constant.UserConstant.ADMIN_ROLE;
 import static com.qinjiu.usercenter.constant.UserConstant.USER_LOGIN_STATUS;
 
 /**
@@ -33,6 +48,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Resource
     private UserMapper userMapper;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     //盐值，混淆密码
     private final String SALT = "QinJiu";
@@ -135,7 +153,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         //用户不存在
         if (user == null) {
             log.info("login failed,userAccount not matched userPassword");
-            throw new BusinessException(ErrorCode.PARAM_ERROR,"该用户不存在");
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "该用户不存在");
 
         }
 
@@ -146,13 +164,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         //记录用户登陆态
         request.getSession().setAttribute(USER_LOGIN_STATUS, safetyUser);
 
+        //将该用户缓存到redis
+        String redisKey = String.format("QinJiu:matchFriend:userAccount:%s", user.getId());
+        ValueOperations<String, String> opsForSet = stringRedisTemplate.opsForValue();
+        opsForSet.set(redisKey, userAccount, 86400, TimeUnit.SECONDS);
+
         return safetyUser;
     }
 
     @Override
     public User getSafetUser(User originUser) {
         if (originUser == null) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR,"用户信息为空");
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "用户信息为空");
 
         }
         User safetyUser = new User();
@@ -167,6 +190,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         safetyUser.setPlanetCode(originUser.getPlanetCode());
         safetyUser.setUserStatus(originUser.getUserStatus());
         safetyUser.setCreateTime(originUser.getCreateTime());
+        safetyUser.setTags(originUser.getTags());
         return safetyUser;
     }
 
@@ -176,6 +200,159 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
         return 1;
     }
+
+    /**
+     * 根据标签搜索用户
+     *
+     * @param tagNameList 用户拥有的标签
+     * @return 脱敏用户信息
+     */
+    @Override
+    public List<User> searchByTags(List<String> tagNameList) {
+        if (CollectionUtils.isEmpty(tagNameList)) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "请求参数为空");
+        }
+
+        //1。 先查询所有用户
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        List<User> userList = userMapper.selectList(queryWrapper);
+        Gson gson = new Gson();
+        //在内存中判断是否包含要求的标签
+        return userList.stream().filter(user -> {
+            String tagStr = user.getTags();
+            if (StringUtils.isAllBlank(tagStr)) {
+                return false;
+            }
+            Set<User> tempTagNameSet = gson.fromJson(tagStr, new TypeToken<Set<String>>() {
+            }.getType());
+            //如果前面的值为空，取到的值就是后面那个
+            tempTagNameSet = Optional.ofNullable(tempTagNameSet).orElse(new HashSet<>());
+            for (String tagName : tagNameList) {
+                if (!tempTagNameSet.contains(tagName)) {
+                    return false;
+                }
+            }
+            return true;
+        }).map(this::getSafetUser).collect(Collectors.toList());
+
+    }
+
+    @Override
+    public int updateUser(User user, User loginUser) {
+        Long userId = user.getId();
+        if (userId < 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        if (!isAdmin(loginUser) && !userId.equals(loginUser.getId())) {
+            throw new BusinessException(ErrorCode.NO_AUTH);
+        }
+        User oldUser = userMapper.selectById(userId);
+        if (oldUser == null) {
+            throw new BusinessException(ErrorCode.NULL_ERROR);
+        }
+        return userMapper.updateById(user);
+    }
+
+    @Override
+    public User getLoginUser(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+
+        Object objUser = request.getSession().getAttribute(USER_LOGIN_STATUS);
+        if (objUser == null) {
+            throw new BusinessException(ErrorCode.NO_AUTH);
+
+        }
+        return (User) objUser;
+    }
+
+    @Override
+    public boolean isAdmin(HttpServletRequest request) {
+        //仅管理员课查询
+        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATUS);
+        User user = (User) userObj;
+
+        return user != null && user.getUserRole() == ADMIN_ROLE;
+    }
+
+    @Override
+    public boolean isAdmin(User loginUser) {
+        //仅管理员课查
+
+        return loginUser != null && loginUser.getUserRole() == ADMIN_ROLE;
+    }
+
+    @Override
+    public List<User> matchUser(int n, User loginUser) {
+        QueryWrapper<User> wrapper = new QueryWrapper<>();
+        wrapper.select("id", "tags");
+        wrapper.isNotNull("tags");
+        List<User> userList = this.list(wrapper);
+        String tags = loginUser.getTags();
+        Gson gson = new Gson();
+        List<String> tagList = gson.fromJson(tags, new TypeToken<List<String>>() {
+        }.getType());
+        // 用户列表的下标 =》 相似度
+        List<Pair<User, Float>> topList = new ArrayList<>();
+        for (User user : userList) {
+            String userTags = user.getTags();
+            // 无标签
+            if (StringUtils.isBlank(userTags) || user.getId().equals(loginUser.getId())) {
+                continue;
+            }
+            List<String> userTagsList = gson.fromJson(userTags, new TypeToken<List<String>>() {
+            }.getType());
+            // 计算相似度
+            float similarity = AlgorithmUtils.minDistance(tagList, userTagsList);
+            topList.add(new Pair<>(user, similarity));
+        }
+
+        List<Pair<User, Float>> maxDistanceIndexList = topList.stream()
+                .sorted((a, b) -> (int) (b.getValue() - a.getValue()))
+                .limit(n)
+                .collect(Collectors.toList());
+        List<Long> userIdList = maxDistanceIndexList.stream()
+                .map(pair -> pair.getKey().getId())
+                .collect(Collectors.toList());
+        wrapper = new QueryWrapper<User>().in("id", userIdList);
+
+        Map<Long, List<User>> listMap = this.list(wrapper).stream()
+                .map(this::getSafetUser)
+                .collect(Collectors.groupingBy(User::getId));
+        List<User> finalList = new ArrayList<>();
+        for (Long userId : userIdList) {
+            finalList.add(listMap.get(userId).get(0));
+        }
+        return finalList;
+
+    }
+
+    /**
+     * 根据标签搜索用户(sql 查询版）
+     *
+     * @param tagNameList 用户拥有的标签
+     * @return 脱敏用户信息
+     */
+    @Deprecated
+    private List<User> searchByTagsBySql(List<String> tagNameList) {
+        if (CollectionUtils.isEmpty(tagNameList)) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "请求参数为空");
+        }
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        //拼接 and 操作
+        //like "%java" and "%php%"
+        for (String tagName : tagNameList) {
+            queryWrapper = queryWrapper.like("tags", tagName);
+        }
+
+        List<User> userList = userMapper.selectList(queryWrapper);
+        return userList.stream().map(this::getSafetUser).collect(Collectors.toList());
+
+
+    }
+
+
 }
 
 
