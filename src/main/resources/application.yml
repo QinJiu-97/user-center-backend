@@ -8,13 +8,13 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/user_center?serverTimeZone=Asia/Shanghai
     username: root
-    password: zq97
+    password: 123456
 #session 失效时间（分钟）
   session:
     timeout: 86400
     #默认是none，表示存储在单台主机
     #store-type: redis 表示从redis 读写 session
-#    store-type: redis
+    store-type: redis
 
   mvc:
     pathmatch:
@@ -23,7 +23,7 @@ spring:
   redis:
     host: localhost
     port: 6379
-    password: "qinjiu97"
+    password: "123456"
     database: 0
     connect-timeout: 600000
 
@@ -36,6 +36,8 @@ server:
     session:
       cookie:
         domain:
+
+
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: false

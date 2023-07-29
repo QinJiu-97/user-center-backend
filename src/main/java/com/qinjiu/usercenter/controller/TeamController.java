@@ -128,7 +128,7 @@ public class TeamController {
         }catch (Exception e){
 
         }
-        log.info("+++++++++++++++++++++++++++++++++");
+            log.info("+++++++++++++++++++++++++++++++++");
         // 查询加入队伍的人数
         QueryWrapper<UserTeam>userTeamJoinQueryWrapper = new QueryWrapper<>();
         userTeamJoinQueryWrapper.in("teamId",teamIdList);

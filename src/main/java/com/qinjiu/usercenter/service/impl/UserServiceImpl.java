@@ -55,6 +55,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     //盐值，混淆密码
     private final String SALT = "QinJiu";
 
+    //设置默认头像
+    private final String DEFAULT_AVATAR = "https://qinjiu-class-1311121186.cos.ap-beijing.myqcloud.com/com/qinjiu/avatar/default.jpg";
+
     @Override
     public long UserRegister(String userAccount, String userPassword, String checkPassword, String planet) {
         //校验
@@ -106,12 +109,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes(StandardCharsets.UTF_8));
         User user = new User();
         //插入数据
+        user.setAvatarUrl(DEFAULT_AVATAR);
         user.setUserAccount(userAccount);
+        user.setUsername(planet + userAccount);
         user.setUserPassword(encryptPassword);
         user.setPlanetCode(planet);
         boolean saveResult = this.save(user);
-        if (!saveResult) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "插入数据失败");
+        if (!saveResult){
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
         }
         return user.getId();
     }
@@ -239,6 +244,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Override
     public int updateUser(User user, User loginUser) {
+
+        // todo 用户头像上传不能只存数据库，存在图传或者本地，新用户给默认头像
         Long userId = user.getId();
         if (userId < 0) {
             throw new BusinessException(ErrorCode.PARAM_ERROR);
