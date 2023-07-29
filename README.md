@@ -4,25 +4,25 @@
 
 ##### 主页
  
-![](https://github.com/QinJiu-97/user-center-backend/tree/main/doc/index.png)
+![](https://github.com/QinJiu-97/user-center-backend/blob/main/doc/index.png)
 
 ##### 找伙伴
 
-![](https://github.com/QinJiu-97/user-center-backend/tree/main/doc/search.png)
+![](https://github.com/QinJiu-97/user-center-backend/blob/main/doc/search.png)
 
 ##### 组队
 
-![](https://github.com/QinJiu-97/user-center-backend/tree/main/doc/team.png)
+![](https://github.com/QinJiu-97/user-center-backend/blob/main/doc/team.png)
 
-![](https://github.com/QinJiu-97/user-center-backend/tree/main/doc/team-pwd.png)
+![](https://github.com/QinJiu-97/user-center-backend/blob/main/doc/team-pwd.png)
 
 ##### 创建队伍
 
-![](https://github.com/QinJiu-97/user-center-backend/tree/main/doc/create.png)
+![](https://github.com/QinJiu-97/user-center-backend/blob/main/doc/create.png)
 
 ##### 个人信息以及修改
 
-![](https://github.com/QinJiu-97/user-center-backend/tree/main/doc/userInfo.png)
+![](https://github.com/QinJiu-97/user-center-backend/blob/main/doc/userInfo.png)
 
 
 
